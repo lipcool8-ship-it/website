@@ -38,5 +38,4 @@ yarn-error.log*
 /tmp
 /public/data
 tsconfig.tsbuildinfo
-!/trading_os/.env
 __pycache__/

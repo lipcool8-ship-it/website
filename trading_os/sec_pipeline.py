@@ -106,8 +106,8 @@ def _latest_filing_document(cik: str) -> tuple[str, str, str]:
         clean_form = str(form).upper()
         if clean_form in TARGET_FORMS:
             accession_no_dashes = str(accession).replace("-", "")
-            cik_int = str(int(cik))
-            filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{accession_no_dashes}/{primary_doc}"
+            cik_stripped = str(int(cik))
+            filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik_stripped}/{accession_no_dashes}/{primary_doc}"
             return clean_form, str(accession), filing_url
 
     raise ValueError(f"No recent 10-K or 10-Q found for CIK {cik}")
@@ -195,13 +195,20 @@ def _get_with_retries(
     initial_backoff_seconds: float = 1.0,
 ) -> requests.Response:
     last_error: Exception | None = None
+    retryable_statuses = {429, 500, 502, 503, 504}
     for attempt in range(1, max_attempts + 1):
         try:
             response = requests.get(url, headers=headers, timeout=timeout)
-            if response.status_code in {429, 500, 502, 503, 504}:
-                response.raise_for_status()
+            if response.ok:
+                return response
+            if response.status_code in retryable_statuses:
+                raise requests.HTTPError(f"Retryable HTTP status: {response.status_code}", response=response)
+            response.raise_for_status()
             return response
         except (requests.RequestException, ValueError) as exc:
+            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            if status_code and status_code not in retryable_statuses:
+                raise
             last_error = exc
             if attempt == max_attempts:
                 break
