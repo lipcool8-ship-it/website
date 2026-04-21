@@ -51,14 +51,23 @@ List risks that were Added, Removed, Worsened, or Softened.
 ## 3. Narrative vs Reality
 What management implies versus what filing language actually suggests.
 
-## 4. Valuation Context
+## 4. AI-Washing Detector
+Scan the filing for mentions of 'AI', 'Artificial Intelligence', or 'Agents'. Cross-reference with disclosed CapEx and R&D spending figures. Verdict: Is the company genuinely investing in AI (cite numbers), or is it using AI as a buzzword to distract from weak fundamentals? Be explicit and cite evidence from the filing.
+
+## 5. Valuation Context
 Explain whether valuation looks Cheap, Fair, Rich, or Dangerous based on the sector metrics provided.
 
-## 5. Asymmetric Verdict
+## 6. Asymmetric Verdict
 Choose one: [LONG WATCHLIST / VALUE PLAY / NEUTRAL / VULNERABLE / SHORT WATCHLIST]
 
-## 6. What Would Change My Mind
+## 7. THE AGGRESSIVE BEAR CASE
+Argue, as a convicted short seller, why a smart, informed investor should sell or avoid this stock today. Cite specific risks, valuation concerns, or red flags from the filings. Do not hedge. Be direct and ruthless.
+
+## 8. What Would Change My Mind
 Give 3 measurable conditions that would invalidate your thesis.
+
+## 9. Confidence Level
+State your overall confidence in this audit: Low / Medium / High. Briefly explain what drives the uncertainty or conviction.
 
 Be concise, sharp, evidence-based, and skeptical. Never use generic praise.
 """
@@ -170,7 +179,16 @@ def analyze(client: Anthropic, ticker: str, market_data: str, latest_1a: str, la
         messages=[{"role": "user", "content": f"Ticker: {ticker}\n\n=== CURRENT MARKET DATA ===\n{market_data}\n\n=== LATEST FILING ITEM 1A ===\n{latest_1a}\n\n=== LATEST FILING ITEM 7 ===\n{latest_7}\n\n=== PRIOR FILING ITEM 1A ===\n{prior_1a}\n\n=== PRIOR FILING ITEM 7 ===\n{prior_7}"}]
     )
     out = [block.text for block in msg.content if getattr(block, "type", "") == "text"]
-    return "\n".join(out)
+    report = "\n".join(out)
+    journal = (
+        "\n\n---\n\n"
+        "## 📓 USER DECISION JOURNAL\n\n"
+        "- **My Decision:** [Buy / Sell / Hold / Wait]\n"
+        "- **Conviction Level (1-10):**\n"
+        "- **Key Reason for my move:**\n"
+        "- **Review Date (Next Earnings):**\n"
+    )
+    return report + journal
 
 def append_report(path: Path, ticker: str, report: str):
     path.parent.mkdir(parents=True, exist_ok=True)
