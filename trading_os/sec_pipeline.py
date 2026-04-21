@@ -35,6 +35,7 @@ ARCHIVE_HEADERS = {
 TARGET_FORMS = {"10-K", "10-Q"}
 ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022"
 DEFAULT_MAX_TOKENS = 1200
+SEC_REQUEST_DELAY_SECONDS = 0.25
 
 
 def _repo_root() -> Path:
@@ -162,7 +163,7 @@ def _anthropic_audit(client: Anthropic, ticker: str, form: str, item_1a: str, it
     if not item_7:
         item_7 = "Item 7 not found in filing text."
 
-    max_tokens = int(os.getenv("ANTHROPIC_MAX_TOKENS", str(DEFAULT_MAX_TOKENS)))
+    max_tokens = int(os.getenv("ANTHROPIC_MAX_TOKENS", DEFAULT_MAX_TOKENS))
     message = client.messages.create(
         model=ANTHROPIC_MODEL,
         max_tokens=max_tokens,
@@ -212,7 +213,7 @@ def _get_with_retries(
             last_error = exc
             if attempt == max_attempts:
                 break
-            time.sleep(initial_backoff_seconds * (2 ** (attempt - 1)))
+            time.sleep(initial_backoff_seconds * (2**attempt))
 
     if last_error:
         raise last_error
@@ -249,9 +250,9 @@ def main() -> None:
             if not cik:
                 raise ValueError(f"Ticker not found in SEC ticker map: {ticker}")
 
-            time.sleep(0.25)
+            time.sleep(SEC_REQUEST_DELAY_SECONDS)
             form, accession, filing_url = _latest_filing_document(cik)
-            time.sleep(0.25)
+            time.sleep(SEC_REQUEST_DELAY_SECONDS)
             filing_response = _get_with_retries(filing_url, headers=ARCHIVE_HEADERS, timeout=45)
             filing_response.raise_for_status()
             filing_text = _strip_text_from_filing(filing_response.text)
