@@ -136,7 +136,7 @@ def _extract_between(text: str, start_patterns: Iterable[str], end_patterns: Ite
     for pattern in end_patterns:
         end_match = re.search(pattern, after_start, flags=re.IGNORECASE)
         if end_match:
-            candidate = start_idx + 1 + end_match.start()
+            candidate = start_match.end() + end_match.start()
             if candidate < end_idx:
                 end_idx = candidate
 
@@ -163,7 +163,7 @@ def _anthropic_audit(client: Anthropic, ticker: str, form: str, item_1a: str, it
     if not item_7:
         item_7 = "Item 7 not found in filing text."
 
-    max_tokens = int(os.getenv("ANTHROPIC_MAX_TOKENS", os.getenv("LLM_MAX_TOKENS", DEFAULT_MAX_TOKENS)))
+    max_tokens = int(os.getenv("ANTHROPIC_MAX_TOKENS") or os.getenv("LLM_MAX_TOKENS") or DEFAULT_MAX_TOKENS)
     message = client.messages.create(
         model=ANTHROPIC_MODEL,
         max_tokens=max_tokens,
