@@ -151,10 +151,22 @@ def _extract_item_sections(text: str) -> tuple[str, str]:
     )
     item_7 = _extract_between(
         text,
-        start_patterns=[r"\bitem\s*7\b.*management['’]?s\s*discussion", r"\bitem\s*7\b"],
+        start_patterns=[r"\bitem\s*7\b.*management(?:'|’)?s\s*discussion", r"\bitem\s*7\b"],
         end_patterns=[r"\bitem\s*7a\b", r"\bitem\s*8\b"],
     )
     return item_1a, item_7
+
+
+def _resolve_max_tokens() -> int:
+    token_value = os.getenv("ANTHROPIC_MAX_TOKENS") or os.getenv("LLM_MAX_TOKENS")
+    if token_value is None:
+        return DEFAULT_MAX_TOKENS
+    try:
+        return int(token_value)
+    except ValueError as exc:
+        raise ValueError(
+            "Invalid max token value. Set ANTHROPIC_MAX_TOKENS or LLM_MAX_TOKENS to an integer."
+        ) from exc
 
 
 def _anthropic_audit(client: Anthropic, ticker: str, form: str, item_1a: str, item_7: str) -> str:
@@ -163,7 +175,7 @@ def _anthropic_audit(client: Anthropic, ticker: str, form: str, item_1a: str, it
     if not item_7:
         item_7 = "Item 7 not found in filing text."
 
-    max_tokens = int(os.getenv("ANTHROPIC_MAX_TOKENS") or os.getenv("LLM_MAX_TOKENS") or DEFAULT_MAX_TOKENS)
+    max_tokens = _resolve_max_tokens()
     message = client.messages.create(
         model=ANTHROPIC_MODEL,
         max_tokens=max_tokens,
