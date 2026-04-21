@@ -36,6 +36,14 @@ You will receive:
 
 Your task is to identify what changed, what matters, and whether price reflects reality.
 
+MANDATORY ANALYTICAL RULES:
+1) Sector-Adjusted Benchmarks: Do not use flat CapEx rules (e.g., 45%). Benchmark CapEx/Revenue and investment intensity against the company’s specific GICS sub-industry norms (e.g., Fabless Semis vs Software vs Banks) before drawing conclusions.
+2) Management Credibility Check: Extract forward-looking promises from the Prior filing and test whether the Latest filing shows those promises were met, missed, or reframed.
+3) Pricing Power Rank: Explicitly rank pricing power as [High / Medium / Low] based on whether the business can pass through 3.3% inflationary cost pressure without material volume/demand loss.
+4) Severity Stack: Rank all identified risks from highest to lowest severity, with Liquidity failures always ranked above Margin failures; Demand/Execution/Valuation risks can only follow after those.
+5) Verdict Rule: The final investment verdict must be anchored to the single highest-severity flag in the Severity Stack.
+6) Brevity Constraint: Every section below is hard-limited to 3 sentences maximum.
+
 STRICT OUTPUT FORMAT IN MARKDOWN:
 # {TICKER} Investment Memo
 
@@ -45,28 +53,34 @@ STRICT OUTPUT FORMAT IN MARKDOWN:
 - Inventory Risk: X/10
 - Valuation Stretch Risk: X/10
 
-## 2. QoQ Delta (Most Important)
+## 2. Severity Stack (Highest → Lowest)
+Rank key risks in order of severity and ensure Liquidity is above Margin whenever both are present.
+
+## 3. QoQ Delta (Most Important)
 List risks that were Added, Removed, Worsened, or Softened.
 
-## 3. Narrative vs Reality
+## 4. Narrative vs Reality
 What management implies versus what filing language actually suggests.
 
-## 4. AI-Washing Detector
+## 5. AI-Washing Detector
 Scan the filing for mentions of 'AI', 'Artificial Intelligence', or 'Agents'. Cross-reference with disclosed CapEx and R&D spending figures. Verdict: Is the company genuinely investing in AI (cite numbers), or is it using AI as a buzzword to distract from weak fundamentals? Be explicit and cite evidence from the filing.
 
-## 5. Valuation Context
+## 6. Pricing Power Rank
+Rank as [High / Medium / Low] with evidence for the company’s ability to pass through 3.3% inflation without losing demand.
+
+## 7. Valuation Context
 Explain whether valuation looks Cheap, Fair, Rich, or Dangerous based on the sector metrics provided.
 
-## 6. Asymmetric Verdict
+## 8. Asymmetric Verdict
 Choose one: [LONG WATCHLIST / VALUE PLAY / NEUTRAL / VULNERABLE / SHORT WATCHLIST]
 
-## 7. THE AGGRESSIVE BEAR CASE
+## 9. THE AGGRESSIVE BEAR CASE
 Argue, as a convicted short seller, why a smart, informed investor should sell or avoid this stock today. Cite specific risks, valuation concerns, or red flags from the filings. Do not hedge. Be direct and ruthless.
 
-## 8. What Would Change My Mind
+## 10. What Would Change My Mind
 Give 3 measurable conditions that would invalidate your thesis.
 
-## 9. Confidence Level
+## 11. Confidence Level
 State your overall confidence in this audit: Low / Medium / High. Briefly explain what drives the uncertainty or conviction.
 
 Be concise, sharp, evidence-based, and skeptical. Never use generic praise.
@@ -167,6 +181,9 @@ def get_market_data(ticker: str) -> str:
         return "Market data unavailable."
 
 def analyze(client: Anthropic, ticker: str, market_data: str, latest_1a: str, latest_7: str, prior_1a: str, prior_7: str) -> str:
+    parsed_count = sum(1 for section in [latest_1a, latest_7, prior_1a, prior_7] if section.strip())
+    sec_parse_confidence = "High" if parsed_count == 4 else ("Med" if parsed_count >= 2 else "Low")
+
     if not latest_1a.strip(): latest_1a = "[EXTRACTION FAILED - SEC formatting prevented parsing of Item 1A]"
     if not latest_7.strip(): latest_7 = "[EXTRACTION FAILED - SEC formatting prevented parsing of Item 7]"
     if not prior_1a.strip(): prior_1a = "[EXTRACTION FAILED - SEC formatting prevented parsing of Item 1A]"
@@ -186,7 +203,8 @@ def analyze(client: Anthropic, ticker: str, market_data: str, latest_1a: str, la
         "- **My Decision:** [Buy / Sell / Hold / Wait]\n"
         "- **Conviction Level (1-10):**\n"
         "- **Key Reason for my move:**\n"
-        "- **Review Date (Next Earnings):**\n"
+        "- **Next Earnings Date:**\n"
+        f"- **Confidence Score (Low/Med/High):** {sec_parse_confidence}\n"
     )
     return report + journal
 
