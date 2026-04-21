@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -32,6 +33,8 @@ ARCHIVE_HEADERS = {
     "Host": "www.sec.gov",
 }
 TARGET_FORMS = {"10-K", "10-Q"}
+ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022"
+DEFAULT_MAX_TOKENS = 1200
 
 
 def _repo_root() -> Path:
@@ -75,7 +78,7 @@ def _load_portfolio_tickers(path: Path) -> list[str]:
 
 
 def _get_cik_map() -> dict[str, str]:
-    response = requests.get("https://www.sec.gov/files/company_tickers.json", headers=ARCHIVE_HEADERS, timeout=30)
+    response = _get_with_retries("https://www.sec.gov/files/company_tickers.json", headers=ARCHIVE_HEADERS, timeout=30)
     response.raise_for_status()
     payload = response.json()
 
@@ -90,7 +93,7 @@ def _get_cik_map() -> dict[str, str]:
 
 def _latest_filing_document(cik: str) -> tuple[str, str, str]:
     url = f"https://data.sec.gov/submissions/CIK{cik}.json"
-    response = requests.get(url, headers=SEC_HEADERS, timeout=30)
+    response = _get_with_retries(url, headers=SEC_HEADERS, timeout=30)
     response.raise_for_status()
     payload = response.json()
 
@@ -159,9 +162,10 @@ def _anthropic_audit(client: Anthropic, ticker: str, form: str, item_1a: str, it
     if not item_7:
         item_7 = "Item 7 not found in filing text."
 
+    max_tokens = int(os.getenv("ANTHROPIC_MAX_TOKENS", str(DEFAULT_MAX_TOKENS)))
     message = client.messages.create(
-        model="claude-3-5-sonnet-latest",
-        max_tokens=1200,
+        model=ANTHROPIC_MODEL,
+        max_tokens=max_tokens,
         system=SYSTEM_PROMPT,
         messages=[
             {
@@ -180,6 +184,32 @@ def _anthropic_audit(client: Anthropic, ticker: str, form: str, item_1a: str, it
         if getattr(block, "type", "") == "text":
             text_blocks.append(block.text)
     return "\n".join(text_blocks).strip()
+
+
+def _get_with_retries(
+    url: str,
+    *,
+    headers: dict[str, str],
+    timeout: int,
+    max_attempts: int = 4,
+    initial_backoff_seconds: float = 1.0,
+) -> requests.Response:
+    last_error: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = requests.get(url, headers=headers, timeout=timeout)
+            if response.status_code in {429, 500, 502, 503, 504}:
+                response.raise_for_status()
+            return response
+        except (requests.RequestException, ValueError) as exc:
+            last_error = exc
+            if attempt == max_attempts:
+                break
+            time.sleep(initial_backoff_seconds * (2 ** (attempt - 1)))
+
+    if last_error:
+        raise last_error
+    raise RuntimeError(f"Failed request with unknown error: {url}")
 
 
 def _append_report(path: Path, ticker: str, form: str, accession: str, filing_url: str, report: str) -> None:
@@ -212,8 +242,10 @@ def main() -> None:
             if not cik:
                 raise ValueError(f"Ticker not found in SEC ticker map: {ticker}")
 
+            time.sleep(0.25)
             form, accession, filing_url = _latest_filing_document(cik)
-            filing_response = requests.get(filing_url, headers=ARCHIVE_HEADERS, timeout=45)
+            time.sleep(0.25)
+            filing_response = _get_with_retries(filing_url, headers=ARCHIVE_HEADERS, timeout=45)
             filing_response.raise_for_status()
             filing_text = _strip_text_from_filing(filing_response.text)
             item_1a, item_7 = _extract_item_sections(filing_text)
