@@ -107,7 +107,7 @@ def _latest_filing_document(cik: str) -> tuple[str, str, str]:
         clean_form = str(form).upper()
         if clean_form in TARGET_FORMS:
             accession_no_dashes = str(accession).replace("-", "")
-            cik_stripped = str(int(cik))
+            cik_stripped = cik.lstrip("0") or "0"
             filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik_stripped}/{accession_no_dashes}/{primary_doc}"
             return clean_form, str(accession), filing_url
 
@@ -131,7 +131,7 @@ def _extract_between(text: str, start_patterns: Iterable[str], end_patterns: Ite
 
     start_idx = start_match.start()
     end_idx = len(text)
-    after_start = text[start_idx + 1 :]
+    after_start = text[start_match.end() :]
 
     for pattern in end_patterns:
         end_match = re.search(pattern, after_start, flags=re.IGNORECASE)
@@ -163,7 +163,7 @@ def _anthropic_audit(client: Anthropic, ticker: str, form: str, item_1a: str, it
     if not item_7:
         item_7 = "Item 7 not found in filing text."
 
-    max_tokens = int(os.getenv("ANTHROPIC_MAX_TOKENS", DEFAULT_MAX_TOKENS))
+    max_tokens = int(os.getenv("ANTHROPIC_MAX_TOKENS", os.getenv("LLM_MAX_TOKENS", DEFAULT_MAX_TOKENS)))
     message = client.messages.create(
         model=ANTHROPIC_MODEL,
         max_tokens=max_tokens,
@@ -213,7 +213,7 @@ def _get_with_retries(
             last_error = exc
             if attempt == max_attempts:
                 break
-            time.sleep(initial_backoff_seconds * (2**attempt))
+            time.sleep(initial_backoff_seconds * (2 ** (attempt - 1)))
 
     if last_error:
         raise last_error
